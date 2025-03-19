@@ -1,9 +1,9 @@
 /**
- * @file virtual_os_config.h
+ * @file align_mm.c
  * @author wenshuyu (wsy2161826815@163.com)
- * @brief 框架配置
+ * @brief 对齐内存接口
  * @version 1.0
- * @date 2025-03-04
+ * @date 2025-03-18
  * 
  * @copyright Copyright (c) 2024-2025
  * @see repository: https://github.com/i-tesetd-it-no-problem/VirtualOS.git
@@ -30,29 +30,52 @@
  * 
  */
 
-#ifndef __VIRTUAL_OS_CONFIG_H__
-#define __VIRTUAL_OS_CONFIG_H__
+#include <stdlib.h>
+#include "core/lib/align_mm.h"
+
+#define IS_POWER_OF_TWO(align) ((align) != 0 && ((align) & ((align) - 1)) == 0)
+#define EXTRA_MEMORY(size, align) ((size) + (align) - 1 + sizeof(void *))
+#define ALIGN_UP(ptr, align) ((void *)(((size_t)(ptr) + (align) - 1 + sizeof(void *)) & ~((align) - 1)))
 
 /**
-* @brief 
-* 
-* 请在编译静态库之前修改此文件的宏定义
-* 在编译静态库后修改此文件的宏定义将不会生效
-* 
-*/
+ * @brief 内存对齐分配
+ * 
+ * @param size 申请大小
+ * @param align 对齐大小
+ * @return void* 对齐后的指针，失败返回NULL
+ */
+void *aligned_malloc(size_t size, size_t align)
+{
+	if (!IS_POWER_OF_TWO(align) || align < sizeof(void *))
+		return NULL;
 
-// 设备数量配置
-#define VIRTUALOS_MAX_DEV_NUM (10)		/* 最大设备数量 同时用于驱动数量以及文件描述符的数量 */
-#define VIRTUALOS_MAX_DEV_NAME_LEN (16) /* 最大设备名长度(包括\0) */
+	if (size == 0)
+		return NULL;
 
-// Shell使能配置
-// 注: 如果框架使用静态库编译则不建议使用此功能，因为Shell与具体的芯片平台串口有强依赖关系，不适用于静态库链接
-// 使用静态库链接时，用户可以通过在应用层单独使用`utils/simple_shell`组件，使用应用层的接口进行注册
-// 若要使用此功能，请将框架源码与应用工程一起编译，使能此宏会提供一些框架提供的内置命令
-#define VIRTUALOS_SHELL_ENABLE (0)	  /* 使能shell 1:使能 0:禁止 */
-#define VIRTUALOS_SHELL_PRIOD_MS (25) /* shell任务周期 默认25ms */
+	size_t alloc_size = EXTRA_MEMORY(size, align);
+	void *ptr = malloc(alloc_size);
+	if (ptr == NULL)
+		return NULL;
 
-// BGET组件内存分配等功能高于标准库的malloc
-#define VIRTUALOS_ENABLE_BGET (1) /* 使能动态内存分配功能 1:使能 0:禁止 */
+	void *aligned_ptr = ALIGN_UP(ptr, align);
+	((void **)aligned_ptr)[-1] = ptr;
 
-#endif /* __VIRTUAL_OS_CONFIG_H__ */
+	return aligned_ptr;
+}
+
+/**
+ * @brief 内存对齐释放
+ * 
+ * @param ptr 通过aligned_malloc申请的指针
+ */
+void aligned_free(void *ptr)
+{
+	if (ptr == NULL)
+		return;
+
+	if (((size_t)ptr & (sizeof(void *) - 1)) != 0)
+		return;
+
+	void *real_ptr = ((void **)ptr)[-1];
+	free(real_ptr);
+}

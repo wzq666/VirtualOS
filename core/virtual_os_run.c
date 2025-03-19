@@ -35,8 +35,8 @@
 #include "driver/virtual_os_driver.h"
 #include "core/virtual_os_run.h"
 #include "core/virtual_os_defines.h"
-#include "core/virtual_os_config.h"
 #include "utils/stimer.h"
+#include "utils/string_hash.h"
 
 extern void dal_init(void);
 
@@ -53,7 +53,7 @@ static void register_drivers(void)
 	}
 }
 
-void virtual_os_init(struct timer_port *port)
+static void virtual_os_base_init(struct timer_port *port)
 {
 	driver_manage_init();
 
@@ -69,5 +69,21 @@ void virtual_os_init(struct timer_port *port)
 	extern void virtual_os_shell_task(void);
 	stimer_task_create(virtual_os_shell_init, virtual_os_shell_task, VIRTUALOS_SHELL_PRIOD_MS);
 #endif
-
 }
+
+#if VIRTUALOS_ENABLE_BGET
+#include "core/virtual_os_mm.h"
+void virtual_os_init(struct timer_port *port, size_t poll_size)
+{
+	virtual_os_mm_init(poll_size);
+	virtual_os_base_init(port);
+}
+
+#else
+
+void virtual_os_init(struct timer_port *port)
+{
+	virtual_os_base_init(port);
+}
+
+#endif

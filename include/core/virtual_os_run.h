@@ -33,7 +33,22 @@
 #ifndef __VIRTUAL_OS_RUN_H__
 #define __VIRTUAL_OS_RUN_H__
 
+#include <stddef.h>
+
+#include "core/virtual_os_config.h"
 #include "utils/stimer.h"
+
+#if VIRTUALOS_ENABLE_BGET
+
+/**
+ * @brief 框架调度初始化 如果启用VirtualOS的内存管理则需要提供一个内存池大小
+ * 
+ * @param port 时钟配置 详细参考`utils/stimer.h`
+ * @param poll_size 内存池大小 通常是RAM剩余的大小范围内
+ */
+void virtual_os_init(struct timer_port *port, size_t poll_size);
+
+#else
 
 /**
  * @brief 框架调度初始化
@@ -41,5 +56,7 @@
  * @param port 时钟配置 详细参考`utils/stimer.h`
  */
 void virtual_os_init(struct timer_port *port);
+
+#endif
 
 #endif /* __VIRTUAL_OS_RUN_H__ */

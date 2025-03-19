@@ -55,9 +55,9 @@
  * @param argv 参数列表
  * @param out 输出缓冲区
  * @param buffer_size 输出缓冲区大小
- * @param out_len 实际写入输出缓冲区的字节数
+ * @param usr_out_len 实际写入输出缓冲区的字节数
  */
-typedef void (*sp_shell_cb)(int argc, char *argv[], uint8_t *out, size_t buffer_size, size_t *out_len);
+typedef void (*sp_shell_cb)(int argc, char *argv[], uint8_t *out, size_t buffer_size, size_t *usr_out_len);
 
 /**
  * @brief Shell命令结构体

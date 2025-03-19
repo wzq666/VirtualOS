@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -34,6 +34,8 @@
 #include <string.h>
 #include "utils/string_hash.h"
 
+#include "core/virtual_os_mm.h"
+
 // FNV-1a hash
 static uint32_t hash(const char *key, size_t table_size)
 {
@@ -52,7 +54,7 @@ enum hash_error init_hash_table(struct hash_table *hash_table, size_t table_size
 	if (!hash_table)
 		return HASH_POINT_ERROR;
 
-	hash_table->table = (list_item *)calloc(table_size, sizeof(list_item));
+	hash_table->table = (list_item *)virtual_os_calloc(table_size, sizeof(list_item));
 
 	if (!hash_table->table)
 		return HASH_POINT_ERROR;
@@ -83,15 +85,16 @@ enum hash_error hash_insert(struct hash_table *hash_table, const char *key, void
 		}
 	}
 
-	struct string_hash_node *new_node = (struct string_hash_node *)calloc(1, sizeof(struct string_hash_node));
+	struct string_hash_node *new_node =
+		(struct string_hash_node *)virtual_os_calloc(1, sizeof(struct string_hash_node));
 	list_init(&new_node->list);
 
 	if (!new_node)
 		return HASH_POINT_ERROR;
 
-	new_node->key = (char *)calloc(1, strlen(key) + 1);
+	new_node->key = (char *)virtual_os_calloc(1, strlen(key) + 1);
 	if (!new_node->key) {
-		free(new_node);
+		virtual_os_free(new_node);
 
 		return HASH_POINT_ERROR;
 	}
@@ -147,8 +150,8 @@ enum hash_error hash_delete(struct hash_table *hash_table, const char *key)
 
 		if (strcmp(node->key, key) == 0) {
 			list_delete_item(pos);
-			free(node->key);
-			free(node);
+			virtual_os_free(node->key);
+			virtual_os_free(node);
 
 			return HASH_SUCCESS;
 		}
@@ -174,7 +177,7 @@ enum hash_error hash_get_all_keys(struct hash_table *hash_table, char ***keys, s
 		return HASH_SUCCESS;
 	}
 
-	char **key_array = (char **)calloc(total_keys, sizeof(char *));
+	char **key_array = (char **)virtual_os_calloc(total_keys, sizeof(char *));
 	if (!key_array)
 		return HASH_POINT_ERROR;
 
@@ -186,12 +189,12 @@ enum hash_error hash_get_all_keys(struct hash_table *hash_table, char ***keys, s
 			struct string_hash_node *node = container_of(pos, struct string_hash_node, list);
 
 			size_t key_len = strlen(node->key) + 1;
-			key_array[index] = (char *)calloc(1, key_len);
+			key_array[index] = (char *)virtual_os_calloc(1, key_len);
 			if (!key_array[index]) {
 				for (size_t j = 0; j < index; ++j)
-					free(key_array[j]);
+					virtual_os_free(key_array[j]);
 
-				free(key_array);
+				virtual_os_free(key_array);
 				return HASH_POINT_ERROR;
 			}
 
@@ -216,10 +219,10 @@ void destroy_hash_table(struct hash_table *hash_table)
 		{
 			struct string_hash_node *node = container_of(pos, struct string_hash_node, list);
 			list_delete_item(pos);
-			free(node->key);
-			free(node);
+			virtual_os_free(node->key);
+			virtual_os_free(node);
 		}
 	}
 
-	free(hash_table->table);
+	virtual_os_free(hash_table->table);
 }

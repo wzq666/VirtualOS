@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -32,6 +32,7 @@
 
 #include <stdlib.h>
 #include "utils/h_tree.h"
+#include "core/virtual_os_mm.h"
 
 bool init_tree_node(struct tree_node *node)
 {
@@ -45,10 +46,10 @@ bool init_tree_node(struct tree_node *node)
 
 struct tree_node *create_tree_node()
 {
-	struct tree_node *node = (struct tree_node *)calloc(1, sizeof(struct tree_node));
+	struct tree_node *node = (struct tree_node *)virtual_os_calloc(1, sizeof(struct tree_node));
 	if (node != NULL) {
 		if (!init_tree_node(node)) {
-			free(node);
+			virtual_os_free(node);
 			return NULL;
 		}
 	}
@@ -75,7 +76,7 @@ void destroy_tree_node(struct tree_node *node, visit_func visit)
 	if (visit)
 		visit(node);
 
-	free(node);
+	virtual_os_free(node);
 }
 
 bool add_tree_child(struct tree_node *parent, struct tree_node *child)
@@ -164,7 +165,7 @@ void traverse_tree_bfs(struct tree_node *root, visit_func visit)
 
 	size_t node_count = get_tree_node_count(root);
 
-	struct tree_node **queue = (struct tree_node **)calloc(node_count, sizeof(struct tree_node *));
+	struct tree_node **queue = (struct tree_node **)virtual_os_calloc(node_count, sizeof(struct tree_node *));
 	if (queue == NULL)
 		return;
 
@@ -185,7 +186,7 @@ void traverse_tree_bfs(struct tree_node *root, visit_func visit)
 		}
 	}
 
-	free(queue);
+	virtual_os_free(queue);
 }
 
 struct tree_node *get_tree_root(struct tree_node *node)

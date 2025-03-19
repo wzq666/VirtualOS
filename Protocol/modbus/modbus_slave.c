@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -30,12 +30,15 @@
  *
  */
 
+#include <stdint.h>
+#include <stdlib.h>
+
 #include "utils/crc.h"
 #include "utils/log.h"
 #include "utils/queue.h"
+
 #include "protocol/modbus/modbus_slave.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include "core/virtual_os_mm.h"
 
 // 接收状态
 enum rx_state {
@@ -449,7 +452,7 @@ mb_slv_handle mb_slv_init(
 	if (!opts || !opts->f_init || !opts->f_read || !opts->f_write)
 		return NULL;
 
-	struct mb_slv *handle = calloc(1, sizeof(struct mb_slv));
+	struct mb_slv *handle = virtual_os_calloc(1, sizeof(struct mb_slv));
 	if (!handle)
 		return NULL;
 
@@ -460,13 +463,13 @@ mb_slv_handle mb_slv_init(
 
 	ret = queue_init(&handle->msg_state.rx_q, sizeof(uint8_t), handle->msg_state.rx_queue_buff, RX_BUFF_SIZE);
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
 	ret = opts->f_init();
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
@@ -483,7 +486,7 @@ void mb_slv_destroy(mb_slv_handle handle)
 	if (!handle)
 		return;
 
-	free(handle);
+	virtual_os_free(handle);
 }
 
 /**

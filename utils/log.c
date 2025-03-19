@@ -54,14 +54,29 @@
 static uint8_t log_buffer[LOG_BUFFER_SIZE]; /* 日志缓冲区 */
 
 struct syslog_instance {
-	struct log_interface *interface;  // 串口接口
+	log_write f_write;				  // 输出接口
 	struct queue_info log_queue;	  // 日志队列
 	uint32_t timestamp;				  // 时间戳
 	uint32_t pre_time;				  // 时间戳计数
 	uint32_t period_md;				  // 任务周期
 	bool initialized;				  // 是否初始化
 	enum log_level current_log_level; // 当前日志等级
+	uint32_t module_mask;			  // 模块掩码 用于过滤日志
+	uint8_t module_cnt;				  // 最多支持32个模块
 };
+
+static const char *module_info[32] = { 0 }; // 所有模块信息
+
+static inline uint8_t mask_idx(uint32_t mask)
+{
+	uint8_t idx = 0;
+	while (mask) {
+		if (mask & 1)
+			return idx;
+		mask >>= 1;
+		idx++;
+	}
+}
 
 static struct syslog_instance syslog = { 0 };
 
@@ -74,8 +89,7 @@ static struct syslog_instance syslog = { 0 };
  */
 static bool check_instance(struct syslog_instance *instance)
 {
-	return instance && instance->initialized && instance->interface && instance->interface->write &&
-		instance->interface->read && instance->interface->check_over;
+	return instance && instance->initialized && instance->f_write;
 }
 
 /**
@@ -84,9 +98,10 @@ static bool check_instance(struct syslog_instance *instance)
  * @param instance 日志实例
  * @param buf 日志内容缓冲区
  * @param len 日志内容长度
+ * @param mask 模块掩码
  * @return size_t 实际写入的字节数
  */
-static size_t syslog_write(struct syslog_instance *instance, uint8_t *buf, size_t len)
+static size_t syslog_write(struct syslog_instance *instance, uint8_t *buf, size_t len, uint32_t mask)
 {
 	if (!check_instance(instance))
 		return 0;
@@ -117,15 +132,21 @@ static size_t syslog_write(struct syslog_instance *instance, uint8_t *buf, size_
 	len = new_len;
 #endif
 
-	size_t total_len = len + sizeof(size_t); // 2 字节用于存储长度信息
+	size_t total_len = len + sizeof(size_t) + sizeof(uint32_t); // 日志长度信息占用 4 字节 掩码信息占用 4 字节
+	size_t remain_space = queue_remain_space(&instance->log_queue);
 
-	if (queue_remain_space(&instance->log_queue) < total_len) {
-		queue_advance_rd(&instance->log_queue, total_len);
-	}
+	if (remain_space < total_len)
+		return 0;
 
+	// 长度信息
 	if (queue_add(&instance->log_queue, (uint8_t *)&len, sizeof(size_t)) != sizeof(size_t))
 		return 0;
 
+	// 掩码信息
+	if (queue_add(&instance->log_queue, (uint8_t *)&mask, sizeof(uint32_t)) != sizeof(uint32_t))
+		return 0;
+
+	// 日志内容
 	if (queue_add(&instance->log_queue, buf, len) != len)
 		return 0;
 
@@ -151,67 +172,50 @@ static void syslog_show(struct syslog_instance *instance)
 	}
 #endif
 
-	while (!is_queue_empty(&instance->log_queue) && instance->interface->check_over()) {
+	while (!is_queue_empty(&instance->log_queue)) {
 		// 日志长度信息
 		size_t flush_len = 0;
-		if (queue_get(&instance->log_queue, (uint8_t *)&flush_len, sizeof(size_t)) != sizeof(size_t)) {
-			return;
-		}
+		queue_get(&instance->log_queue, (uint8_t *)&flush_len, sizeof(size_t));
 
 		if (flush_len == 0 || flush_len > MAX_LOG_LENGTH)
 			return;
 
+		// 掩码信息
+		uint32_t mask = 0;
+		queue_get(&instance->log_queue, (uint8_t *)&mask, sizeof(uint32_t));
+
 		// 取出日志
 		uint8_t tmp_buf[MAX_LOG_LENGTH];
-		if (queue_get(&instance->log_queue, tmp_buf, flush_len) != flush_len)
-			return;
-
-		// 发送日志
-		instance->interface->write(tmp_buf, flush_len);
+		queue_get(&instance->log_queue, tmp_buf, flush_len);
+		if (syslog.module_mask & mask)
+			instance->f_write(tmp_buf, flush_len); // 过滤掩码
 	}
 }
 
-/**************************API**************************/
-
 /**
- * @brief 日志初始化
- * 
- * @param interface 串口接口
- * @param period_ms 任务周期（毫秒）
+ * @brief 填充模块名称数组 按照掩码从小到大排序 模块名的索引就是实际的掩码位
+ * 		  结束后 module_buf_size 指向实际填充的模块个数
+ * @param module_buf 
+ * @param module_buf_size 
  */
-void syslog_init(struct log_interface *interface, uint32_t period_ms)
+void fill_module_names(char *module_buf[], uint8_t *module_buf_size)
 {
-	if (!interface || !interface->read || !interface->write || !interface->check_over)
-		return;
-
-	syslog.interface = interface;
-	syslog.period_md = period_ms;
-	syslog.current_log_level = LOG_LEVEL_INFO; // 默认日志等级为INFO
-
-	queue_init(&syslog.log_queue, sizeof(uint8_t), log_buffer, LOG_BUFFER_SIZE);
-
-	syslog.initialized = true;
+	size_t less = *module_buf_size < syslog.module_cnt ? *module_buf_size : syslog.module_cnt;
+	*module_buf_size = less;
+	for (size_t i = 0; i < less; i++)
+		module_buf[i] = (char *)module_info[i];
 }
 
 /**
- * @brief 日志任务
- * 
- */
-void syslog_task(void)
-{
-	syslog_show(&syslog);
-}
-
-/**
- * @brief 日志发送
- * 
- * @param level 日志等级
- * @param func 函数名
- * @param line 行号
- * @param format 日志格式
- * @param ... 可变参数
- */
-void origin_log(enum log_level level, const char *func, int line, const char *format, ...)
+  * @brief 日志发送 可以通过掩码过滤日志
+  * 
+  * @param mask 模块掩码
+  * @param level 日志等级
+  * @param line 行号
+  * @param format 日志格式
+  * @param ... 可变参数
+  */
+void origin_log(uint32_t mask, enum log_level level, int line, const char *format, ...)
 {
 	if (!check_instance(&syslog))
 		return;
@@ -219,13 +223,18 @@ void origin_log(enum log_level level, const char *func, int line, const char *fo
 	if (level < syslog.current_log_level)
 		return;
 
-	char buffer[MAX_LOG_LENGTH];
+	char buffer[MAX_LOG_LENGTH] = { 0 };
 	int len;
 	va_list args;
 
 	va_start(args, format);
 
-	len = snprintf(buffer, sizeof(buffer), "[%-5s] [%-20s:%-4d] : ", LOG_LEVEL_STR(level), func, line);
+	uint8_t module_idx = mask_idx(mask);
+	if (module_idx >= syslog.module_cnt)
+		return;
+
+	len = snprintf(
+		buffer, sizeof(buffer), "[%-5s] [%-10s] [%-4d] : ", LOG_LEVEL_STR(level), module_info[module_idx], line);
 
 	if (len < 0) {
 		// snprintf 出错
@@ -248,14 +257,35 @@ void origin_log(enum log_level level, const char *func, int line, const char *fo
 
 	va_end(args);
 
-	syslog_write(&syslog, (uint8_t *)buffer, len);
+	syslog_write(&syslog, (uint8_t *)buffer, len, mask);
+}
+
+// 设置日志模块掩码
+void set_log_module_mask(uint32_t mask)
+{
+	syslog.module_mask = mask;
+}
+
+// 获取日志模块掩码
+uint32_t get_log_module_mask(void)
+{
+	return syslog.module_mask;
+}
+
+// 启用全部模块日志
+void enable_all_mask(void)
+{
+	for (size_t i = 0; i < syslog.module_cnt; i++) {
+		uint32_t mask = 1 << i;
+		syslog.module_mask |= mask;
+	}
 }
 
 /**
- * @brief 设置日志等级
- * 
- * @param level 日志等级
- */
+  * @brief 设置日志等级
+  * 
+  * @param level 日志等级
+  */
 void syslog_set_level(enum log_level level)
 {
 	if (check_instance(&syslog))
@@ -275,4 +305,56 @@ uint32_t syslog_get_time(void)
 	if (check_instance(&syslog))
 		return syslog.timestamp;
 	return 0;
+}
+
+void modify_output(log_write f_write)
+{
+	syslog.f_write = f_write;
+}
+/**************************API**************************/
+
+/**
+ * @brief 日志初始化
+ * 
+ * @param f_write 日志输出接口
+ * @param period_ms 任务周期（毫秒）
+ */
+void syslog_init(log_write f_write, uint32_t period_ms)
+{
+	if (!f_write)
+		return;
+
+	syslog.f_write = f_write;
+	syslog.current_log_level = LOG_LEVEL_INFO; // 默认日志等级为INFO
+
+	queue_init(&syslog.log_queue, sizeof(uint8_t), log_buffer, LOG_BUFFER_SIZE);
+
+	syslog.initialized = true;
+}
+
+/**
+  * @brief 日志任务
+  * 
+  */
+void syslog_task(void)
+{
+	syslog_show(&syslog);
+}
+
+/**
+ * @brief 申请日志模块掩码
+ * 
+ * @param module_name 模块名(必须是全局变量)
+ * @return uint32_t 
+ */
+uint32_t allocate_log_mask(const char * const module_name)
+{
+	if (syslog.module_cnt >= 32)
+		syslog.module_cnt = 31; // 最多支持32个模块 覆盖最后一个
+
+	uint32_t mask = 1 << syslog.module_cnt;
+	syslog.module_mask |= mask;
+	module_info[syslog.module_cnt] = module_name;
+	syslog.module_cnt++;
+	return mask;
 }

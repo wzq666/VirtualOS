@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -30,10 +30,11 @@
  * 
  */
 
-#include "utils/button.h"
-
 #include <stdlib.h>
 #include <stddef.h>
+
+#include "utils/button.h"
+#include "core/virtual_os_mm.h"
 
 struct button_jitter {
 	uint8_t previous;
@@ -199,7 +200,7 @@ btn_handle button_ctor(const struct btn_cfg *p_cfg, btn_usr_cb cb)
 	if (!p_cfg || !p_cfg->f_io_read)
 		return NULL;
 
-	btn_handle handle = malloc(sizeof(struct button));
+	btn_handle handle = virtual_os_malloc(sizeof(struct button));
 	if (!handle) {
 		return NULL;
 	}
@@ -223,7 +224,7 @@ btn_handle button_ctor(const struct btn_cfg *p_cfg, btn_usr_cb cb)
 void button_destroy(btn_handle handle)
 {
 	if (handle) {
-		free(handle); // 释放动态分配的按键结构体内存
+		virtual_os_free(handle); // 释放动态分配的按键结构体内存
 	}
 }
 

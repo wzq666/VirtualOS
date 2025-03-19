@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -31,8 +31,11 @@
  */
 
 #include <stdlib.h>
+
 #include "utils/list.h"
 #include "utils/stimer.h"
+
+#include "core/virtual_os_mm.h"
 
 #define HIT_LIST_MASK (STIMER_TASK_HIT_LIST_MAX - 1)
 #define HIT_LIST_IDX(t) ((m_timer.pre_tick + (t)) & HIT_LIST_MASK)
@@ -196,7 +199,7 @@ bool stimer_task_create(stimer_f init_f, stimer_f task_f, uint32_t period_ms)
 	if (!task_f || !period_ms)
 		return false;
 
-	struct stimer_task *task = (struct stimer_task *)calloc(1, sizeof(struct stimer_task));
+	struct stimer_task *task = (struct stimer_task *)virtual_os_calloc(1, sizeof(struct stimer_task));
 	if (task) {
 		task->period = Period_to_Tick(period_ms);
 		task->reserved = 1;

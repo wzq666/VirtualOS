@@ -59,4 +59,10 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
+/**
+ * @brief 主动贯穿
+ * 
+ */
+#define fallthrough __attribute__((__fallthrough__))
+
 #endif /* __VIRTUAL_OS_DEFINES_H__ */

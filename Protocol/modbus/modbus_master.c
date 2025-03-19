@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -30,12 +30,15 @@
  * 
  */
 
-#include "utils/crc.h"
-#include "utils/queue.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "utils/crc.h"
+#include "utils/queue.h"
+
+#include "core/virtual_os_mm.h"
 
 #include "protocol/modbus/modbus_master.h"
 
@@ -527,7 +530,7 @@ mb_mst_handle mb_mst_init(struct serial_opts *opts, size_t period_ms)
 	if (!opts || !opts->f_init || !opts->f_read || !opts->f_write)
 		return NULL;
 
-	struct mb_mst *handle = calloc(1, sizeof(struct mb_mst));
+	struct mb_mst *handle = virtual_os_calloc(1, sizeof(struct mb_mst));
 	if (!handle)
 		return NULL;
 
@@ -538,14 +541,14 @@ mb_mst_handle mb_mst_init(struct serial_opts *opts, size_t period_ms)
 	// 接收队列
 	ret = queue_init(&handle->msg_state.rx_q, sizeof(uint8_t), handle->msg_state.rx_queue_buff, RX_BUFF_SIZE);
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
 	// 写功能码缓冲区
 	ret = queue_init(&handle->msg_state.wr_q, sizeof(uint16_t), handle->msg_state.wr_reg_data, MAX_WRITE_REG_NUM);
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
@@ -553,14 +556,14 @@ mb_mst_handle mb_mst_init(struct serial_opts *opts, size_t period_ms)
 	ret = queue_init(
 		&handle->msg_state.req_info_q, sizeof(struct req_info *), handle->msg_state.req_infos_q_buf, MAX_REQUEST);
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
 	// 用户串口初始化
 	ret = opts->f_init();
 	if (!ret) {
-		free(handle);
+		virtual_os_free(handle);
 		return NULL;
 	}
 
@@ -577,7 +580,7 @@ void mb_mst_destroy(mb_mst_handle handle)
 	if (!handle)
 		return;
 
-	free(handle);
+	virtual_os_free(handle);
 }
 
 /**

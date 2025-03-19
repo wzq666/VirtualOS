@@ -42,6 +42,8 @@
 #include "utils/queue.h"
 #include "utils/string_hash.h"
 
+#include "core/virtual_os_mm.h"
+
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
@@ -49,6 +51,7 @@
 #define NEW_LINE "\r\n"
 #define MAIN_NAME "VirtualOS"					// 前缀
 #define PROMPT MAIN_NAME "@admin" NEW_LINE "$ " // 终端名
+#define NEW_LINE_PROMPT "\r\n" PROMPT
 #define WELCOME "Welcome to Simple Shell" NEW_LINE
 #define TIPS "You can type `list` to get all available commands." NEW_LINE NEW_LINE PROMPT
 #define DEFAULT_MSG WELCOME TIPS
@@ -213,9 +216,9 @@ static void parse_command(char *input, char *argv[], int *argc)
 }
 
 // 处理用户输入命令
-static void process_command(char *cmd_str, uint8_t *output, size_t *output_len)
+static void process_command(char *cmd_str, uint8_t *output, size_t out_buf_size, size_t *usr_out_len)
 {
-	if (!cmd_str || !output || !output_len)
+	if (!cmd_str || !output || !out_buf_size)
 		return;
 
 	char *argv[SPS_CMD_MAX_ARGS] = { 0 };
@@ -229,12 +232,12 @@ static void process_command(char *cmd_str, uint8_t *output, size_t *output_len)
 
 	if (cmd && cmd->cb) {
 		// 存在命令
-		cmd->cb(argc, argv, output, *output_len, output_len);
+		cmd->cb(argc, argv, output, out_buf_size, usr_out_len);
 	} else {
 		// 不存在命令
 		static const char *err_msg = "command not found\r\n";
 		memcpy(output, err_msg, strlen(err_msg));
-		*output_len = strlen(err_msg);
+		*usr_out_len = strlen(err_msg);
 	}
 }
 
@@ -273,7 +276,8 @@ static void handle_newline(struct shell_context *sh_ctx)
 	// 查找命令并执行
 	uint8_t output[MAX_OUT_LEN] = { NEW_LINE[0], NEW_LINE[1] };
 	uint8_t new_line_len = strlen(NEW_LINE);
-	size_t output_len = MAX_OUT_LEN - new_line_len;
+
+	size_t usr_out_len = 0;
 
 	if (sh_ctx->cmd_len > 0) {
 		sh_ctx->cmd_buf[sh_ctx->cmd_len] = '\0';
@@ -281,24 +285,21 @@ static void handle_newline(struct shell_context *sh_ctx)
 		add_to_history((const char *)sh_ctx->cmd_buf); // 加入历史记录
 
 		// 执行命令
-		process_command((char *)sh_ctx->cmd_buf, output + new_line_len, &output_len);
+		process_command((char *)sh_ctx->cmd_buf, output + new_line_len, MAX_OUT_LEN - new_line_len, &usr_out_len);
 
 		// 清空输入
 		memset(sh_ctx->cmd_buf, 0, SPS_CMD_MAX);
 		sh_ctx->cmd_len = 0;
-	} else {
-		memcpy(output + new_line_len, NEW_LINE, new_line_len);
-		output_len = new_line_len;
 	}
 
-	size_t remain_len = MAX_OUT_LEN - new_line_len - output_len;
-	size_t cpy_len = MIN(remain_len, strlen(PROMPT));
+	size_t remain_len = MAX_OUT_LEN - new_line_len - usr_out_len;
+	size_t cpy_len = MIN(remain_len, strlen(NEW_LINE_PROMPT));
 
 	history_index = -1;
-	memcpy(output + new_line_len + output_len, PROMPT, cpy_len);
+	memcpy(output + new_line_len + usr_out_len, NEW_LINE_PROMPT, cpy_len);
 
 	// 加入新行
-	add_msg(output, output_len + new_line_len + strlen(PROMPT));
+	add_msg(output, usr_out_len + new_line_len + strlen(NEW_LINE_PROMPT));
 }
 
 // 删除键
@@ -431,8 +432,8 @@ static void handle_tab_completion(struct shell_context *sh_ctx)
 
 		memcpy(tmp_buf + pos, NEW_LINE, strlen(NEW_LINE));
 		pos += strlen(NEW_LINE);
-		memcpy(tmp_buf + pos, PROMPT, strlen(PROMPT));
-		pos += strlen(PROMPT);
+		memcpy(tmp_buf + pos, NEW_LINE_PROMPT, strlen(NEW_LINE_PROMPT));
+		pos += strlen(NEW_LINE_PROMPT);
 		memcpy(tmp_buf + pos, sh_ctx->cmd_buf, sh_ctx->cmd_len);
 		pos += sh_ctx->cmd_len;
 
@@ -666,14 +667,14 @@ bool simple_shell_init(struct sp_shell_opts *opts, const char *welcome)
 	else {
 		size_t tip_len = strlen(TIPS);
 		size_t welcome_len = strlen(welcome);
-		uint8_t *msg = malloc(tip_len + welcome_len);
+		uint8_t *msg = virtual_os_malloc(tip_len + welcome_len);
 		if (!msg)
 			return false;
 
 		memcpy(msg, welcome, welcome_len);
 		memcpy(msg + welcome_len, TIPS, tip_len);
 		add_msg(msg, tip_len + welcome_len);
-		free(msg);
+		virtual_os_free(msg);
 	}
 
 	return true;

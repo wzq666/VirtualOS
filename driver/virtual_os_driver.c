@@ -10,7 +10,7 @@
  * 
  * The MIT License (MIT)
  * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * Permission is hereby granted, virtual_os_free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
@@ -38,6 +38,7 @@
 #include "core/virtual_os_defines.h"
 #include "core/virtual_os_config.h"
 #include "core/virtual_os_defines.h"
+#include "core/virtual_os_mm.h"
 
 static struct hash_table driver_table = { 0 };
 
@@ -63,11 +64,11 @@ bool driver_register(driver_init drv_init, const struct file_operations *file_op
 {
 	enum hash_error err = HASH_POINT_ERROR;
 
-	struct drv_device *dev = calloc(1, sizeof(struct drv_device));
+	struct drv_device *dev = virtual_os_calloc(1, sizeof(struct drv_device));
 	if (!dev)
 		return false;
 
-	dev->file = calloc(1, sizeof(struct drv_file));
+	dev->file = virtual_os_calloc(1, sizeof(struct drv_file));
 	if (!dev->file)
 		goto free_dev;
 
@@ -78,7 +79,7 @@ bool driver_register(driver_init drv_init, const struct file_operations *file_op
 
 	char *new_name = (char *)name;
 	if (unlikely(strlen(name) >= VIRTUALOS_MAX_DEV_NAME_LEN - 1)) {
-		new_name = (char *)calloc(1, VIRTUALOS_MAX_DEV_NAME_LEN);
+		new_name = (char *)virtual_os_calloc(1, VIRTUALOS_MAX_DEV_NAME_LEN);
 		if (!new_name)
 			goto free_file;
 		strncpy(new_name, name, VIRTUALOS_MAX_DEV_NAME_LEN - 1);
@@ -92,13 +93,13 @@ bool driver_register(driver_init drv_init, const struct file_operations *file_op
 	return true;
 
 free_name:
-	free(new_name);
+	virtual_os_free(new_name);
 
 free_file:
-	free(dev->file);
+	virtual_os_free(dev->file);
 
 free_dev:
-	free(dev);
+	virtual_os_free(dev);
 
 	return false;
 }
@@ -137,9 +138,9 @@ void visit_all_device_name(void (*visit)(const char *name))
 	if (err == HASH_SUCCESS) {
 		for (size_t i = 0; i < num_keys; i++) {
 			visit(keys[i]);
-			free(keys[i]);
+			virtual_os_free(keys[i]);
 		}
-		free(keys);
+		virtual_os_free(keys);
 	}
 }
 
@@ -172,8 +173,8 @@ void fill_all_device_name(char *buf, size_t len)
 		if (len > 0)
 			*buf = '\0';
 		for (size_t i = 0; i < num_keys; i++)
-			free(keys[i]);
-		free(keys);
+			virtual_os_free(keys[i]);
+		virtual_os_free(keys);
 	}
 }
 
